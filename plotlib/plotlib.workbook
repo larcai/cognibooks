@@ -1,0 +1,186 @@
+---
+uti: com.xamarin.workbook
+platforms:
+- Console
+packages:
+- id: XPlot.Plotly
+  version: 1.4.2
+- id: Newtonsoft.Json
+  version: 9.0.1
+- id: System.ValueTuple
+  version: 4.3.0
+- id: FSharp.Core
+  version: 4.1.17
+- id: MatplotlibCS
+  version: 1.0.45
+- id: NLog
+  version: 4.4.9
+---
+
+```csharp
+#r "FSharp.Core" 
+#r "XPlot.Plotly"
+```
+
+```csharp
+using XPlot.Plotly;
+using System.IO; 
+using System.Linq;
+```
+
+```csharp
+var bar = new Graph.Bar() 
+{
+     x = new int[] {20,14, 23}, 
+     y = new string[] { "giraffes", "orangutans", "monkeys"}, 
+     orientation = "h" 
+};
+Chart.Plot(bar).GetHtml().AsHtml()
+```
+
+```csharp
+
+string[] text = System.IO.File.ReadAllLines("xplot.mt.bruno.txt");
+float[][] z = text
+    .ToList()
+    .ConvertAll(t => t.Split(',').ToList().ConvertAll(r => Convert.ToSingle(r)).ToArray())
+    .ToArray();
+
+var layout = new Layout.Layout() { title = "Mt Bruno Elevation", autosize = true, margin = new Graph.Margin() { l = 65, r = 50, b = 65, t = 90 }}; 
+var surfaceplot = Chart.Plot(new Graph.Surface() { z = z }, layout);
+surfaceplot.WithWidth(700); 
+surfaceplot.WithHeight(500);
+surfaceplot.GetHtml().AsHtml();
+```
+
+```csharp
+string[] text = System.IO.File.ReadAllLines("xplot.3DLineData.txt");
+float[][] data = text
+    .ToList()
+    .ConvertAll(t => t.Split(',').ToList().ConvertAll(r => Convert.ToSingle(r)).ToArray())
+    .ToArray();
+
+float[] x1 = data[0], y1 = data[1], z1 = data[2];
+float[] x2 = data[3], y2 = data[4], z2 = data[5];
+float[] x3 = data[6], y3 = data[7], z3 = data[8];
+
+var trace1 = new Graph.Scatter3d() { x = x1, y = y1, z = z1, mode = "lines", 
+        marker = new Graph.Marker() { color = "#1f77b4", size = 12.0, symbol = "circle", 
+            line = new Graph.Line() { color = "rgb(0,0,0)", width = 0.0 }
+        },
+        line = new Graph.Line() { color = "#1f77b4", width = 1.0}
+};
+
+var trace2 = new Graph.Scatter3d() { x = x2, y = y2, z = z2, mode = "lines", 
+        marker = new Graph.Marker() { color = "#9467bd", size = 12.0, symbol = "circle", 
+            line = new Graph.Line() { color = "rgb(0,0,0)", width = 0.0 }
+        },
+        line = new Graph.Line() { color = "rgb(44, 160, 44)", width = 1.0}
+};
+
+var trace3 = new Graph.Scatter3d() { x = x3, y = y3, z = z3, mode = "lines", 
+        marker = new Graph.Marker() { color = "#bcbd22", size = 12.0, symbol = "circle", 
+            line = new Graph.Line() { color = "rgb(0,0,0)", width = 0.0 }
+        },
+        line = new Graph.Line() { color = "#bcbd22", width = 1.0}
+};  
+
+var layout = new Layout.Layout() { title = "3D Random Walk", autosize = false, margin = new Graph.Margin() { l = 0, r = 0, b = 0, t = 65 }}; 
+
+var scatterplot = Chart.Plot(new Graph.Scatter3d[] {trace1, trace2, trace3}, layout);  
+scatterplot.WithWidth(700); 
+scatterplot.WithHeight(500);
+scatterplot.GetHtml().AsHtml();
+```
+
+```csharp
+#r "MatplotlibCS" 
+#r "NLog"
+```
+
+```csharp
+using MatplotlibCS;
+using MatplotlibCS.PlotItems;
+
+var matplotlibCs = new MatplotlibCS.MatplotlibCS(@"C:\ProgramData\Anaconda3", @"J:\Git\python\MatplotlibCS\MatplotlibCS\Python");
+
+const int N = 100;
+var X = new double[N];
+var Y1 = new double[N];
+var Y2 = new double[N];
+var x = 0.0;
+const double h = 2 * Math.PI / N;
+var rnd = new Random();
+for (var i = 0; i < N; i++)
+{
+    var y = Math.Sin(x);
+    X[i] = x;
+    Y1[i] = y;
+    y = Math.Sin(2 * x);
+    Y2[i] = y + rnd.NextDouble() / 10.0;
+    x += h;
+}
+
+var figure = new MatplotlibCS.Figure(1, 1)
+{
+    FileName = "ExampleSin.png",
+    OnlySaveImage = true,
+    DPI = 150,
+    Subplots =
+    {
+        new MatplotlibCS.Axes(1, "The X axis", "The Y axis")
+        {
+            Title = "Sin(x), Sin(2x), VLines, HLines, Annotations",
+            Grid = new MatplotlibCS.Grid()
+            {
+                MinorAlpha = 0.2,
+                MajorAlpha = 1.0,
+                XMajorTicks = new[] {0.0, 7.6, 0.5},
+                YMajorTicks = new[] {-1, 2.5, 0.25},
+                XMinorTicks = new[] {0.0, 7.25, 0.25},
+                YMinorTicks = new[] {-1, 2.5, 0.125}
+            },
+            PlotItems =
+            {
+                new MatplotlibCS.PlotItems.Line2D("Sin")
+                {
+                    X = X.Cast<object>().ToList(),
+                    Y = Y1.ToList(),
+                    LineStyle = LineStyle.Dashed
+                },
+
+                new MatplotlibCS.PlotItems.Line2D("Sin 2x")
+                {
+                    X = X.Cast<object>().ToList(),  
+                    Y = Y2.ToList(),
+                    LineStyle = LineStyle.Solid,
+                    LineWidth = 0.5f,
+                    Color = Color.Green,
+                    Markevery = 5,
+                    MarkerSize = 10,
+                    Marker = Marker.Circle
+                },
+
+                new Text("ant1", "Text annotation", 4.5, 0.76)
+                {
+                    FontSize = 17
+                },
+
+                new Annotation("ant2", "Arrow text annotation", 0.5, -0.7, 3, 0)
+                {
+                    Color = Color.Blue
+                },
+
+                new Vline("vert line", new object[] {3.0}, -1, 1),
+                new Hline("hrzt line", new[] {0.1, 0.25, 0.375}, 0, 5) {LineStyle = LineStyle.Dashed, Color = Color.Magenta}
+            }
+        }
+
+    }
+};
+```
+
+```csharp
+var t = matplotlibCs.BuildFigure(figure);
+//t.Wait();
+```
