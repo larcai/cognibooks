@@ -1,0 +1,199 @@
+---
+uti: com.xamarin.workbook
+platforms:
+- Console
+packages:
+- id: System.ValueTuple
+  version: 4.3.1
+---
+
+Tensorflow Example
+
+Get the Latest TensorflowSharp from source and compile.  Copy the TensorflowSharp.dll and libtensorflow.dll to this workbook local directory.
+
+```csharp
+#r "System.ValueTuple" 
+#r "TensorFlowSharp"
+```
+
+```csharp
+using System.IO; 
+using TensorFlow;
+```
+
+Get the latest Ten
+
+```csharp
+TFCore.Version
+```
+
+```csharp
+typeof(TFCore).Assembly.CodeBase
+```
+
+From https://github.com/aymericdamien/TensorFlow-Examples
+
+Getting Started, Tensor Addition and Mutliply
+
+```csharp
+using (var g = new TFGraph ()) 
+{
+    var s = new TFSession (g);
+
+    TFOutput a = g.Const(2);
+    TFOutput b = g.Const(3);
+    Console.WriteLine("a=2 b=3");
+
+    // Add two constants
+    TFOutput tfadd = g.Add(a, b);
+    TFTensor results = s.GetRunner().Run(tfadd);
+    Console.WriteLine($"a+b={results.GetValue()}");
+
+    // Multiply two constants
+    TFOutput tfmult = g.Mul(a, b);
+    results = s.GetRunner().Run(tfmult);
+    Console.WriteLine($"a*b={results.GetValue()}");
+}
+```
+
+Shows how to use placeholders to pass values
+
+```csharp
+using (var g = new TFGraph ()) 
+{
+    var s = new TFSession (g);
+
+    // We use "shorts" here, so notice the casting to short to get the
+    // tensor with the right data type.
+
+    var var_a = g.Placeholder (TFDataType.Int16);
+    var var_b = g.Placeholder (TFDataType.Int16);
+
+    var add = g.Add (var_a, var_b);
+    var mul = g.Mul (var_a, var_b);
+
+    var runner = s.GetRunner ();
+    runner.AddInput (var_a, new TFTensor ((short)3));
+    runner.AddInput (var_b, new TFTensor ((short)2));
+    Console.WriteLine ("a+b={0}", runner.Run (add).GetValue ());
+
+    runner = s.GetRunner ();
+    runner.AddInput (var_a, new TFTensor ((short)3));
+    runner.AddInput (var_b, new TFTensor ((short)2));
+
+    Console.WriteLine ("a*b={0}", runner.Run (mul).GetValue ());
+}
+```
+
+Shows the use of Variable
+
+```csharp
+var status = new TFStatus ();
+using (var g = new TFGraph ()) 
+{
+    var s = new TFSession (g);
+
+    var initValue = g.Const (1.5);
+    var increment = g.Const (0.5);
+    TFOperation init;
+    TFOutput value;
+    var handle = g.Variable (initValue, out init, out value);
+
+    // Add 0.5 and assign to the variable.
+    // Perhaps using op.AssignAddVariable would be better,
+    // but demonstrating with Add and Assign for now.
+    var update = g.AssignVariableOp (handle, g.Add (value, increment));
+    
+    // Must first initialize all the variables.
+    s.GetRunner ().AddTarget (init).Run (status);
+
+    // Now print the value, run the update op and repeat
+    // Ignore errors.
+    for (int i = 0; i < 5; i++) {
+        // Read and update
+        var result = s.GetRunner ().Fetch (value).AddTarget (update).Run ();
+
+        Console.WriteLine ("Result of variable read {0} -> {1}", i, result [0].GetValue ());
+    }
+}
+```
+
+Basic Multidimensional Array
+
+```csharp
+private static string RowOrderJoin(int[,,] array) => string.Join (", ", array.Cast<int> ());
+
+using (var g = new TFGraph ()) 
+{
+    var s = new TFSession (g);
+
+    var var_a = g.Placeholder (TFDataType.Int32);
+    var mul = g.Mul (var_a, g.Const (2));
+
+    var a = new int[,,] { { { 0, 1 } , { 2, 3 } } , { { 4, 5 }, { 6, 7 } } };
+    var result = s.GetRunner ().AddInput (var_a, a).Fetch (mul).Run () [0];
+
+    var actual = (int[,,])result.GetValue ();
+    var expected = new int[,,] { { { 0, 2 } , { 4, 6 } } , { { 8, 10 }, { 12, 14 } } };
+
+    Console.WriteLine ("Actual:   " + RowOrderJoin (actual));
+    Console.WriteLine ("Expected: " + RowOrderJoin (expected));
+}
+```
+
+Basic matrix multiply
+
+```csharp
+using (var g = new TFGraph ()) 
+{
+    var s = new TFSession (g);
+    // 1x2 matrix
+    var matrix1 = g.Const (new double [,] { { 3, 3 } });
+    // 2x1 matrix
+    var matrix2 = g.Const (new double [,] { { 2 }, { 2 } });
+    // multiply
+    var product = g.MatMul (matrix1, matrix2);
+
+    var results = s.GetRunner ().Run (product);
+
+    Console.WriteLine ($"Tensor ToString={results}");
+    Console.WriteLine ($"Value [0,0]={((double[,])results.GetValue())[0,0]}");
+}
+```
+
+Linear Regression
+
+Port of https://github.com/aymericdamien/TensorFlow-Examples/blob/master/examples/2\_BasicModels/linear\_regression.py
+
+```csharp
+var learning_rate = 0.01;
+var training_epochs = 1000;
+var display_step = 50;
+
+// Training data
+var train_x = new double [] {
+    3.3, 4.4, 5.5, 6.71, 6.93, 4.168, 9.779, 6.182, 7.59, 2.167,7.042, 10.791, 5.313, 7.997, 5.654, 9.27, 3.1
+};
+var train_y = new double [] {
+    1.7,2.76,2.09,3.19,1.694,1.573,3.366,2.596,2.53,1.221,2.827,3.465,1.65,2.904,2.42,2.94,1.3
+};
+var n_samples = train_x.Length;
+using (var g = new TFGraph ()) 
+{
+    var s = new TFSession (g);
+    var rng = new Random ();
+    // tf Graph Input
+
+    var X = g.Placeholder (TFDataType.Float);
+    var Y = g.Placeholder (TFDataType.Float);
+    var W = g.Variable (g.Const (rng.Next ()), operName: "weight");
+    var b = g.Variable (g.Const (rng.Next ()), operName: "bias");
+    var pred = g.Add (g.Mul (X, W), b);
+
+    var cost = g.Div (g.ReduceSum (g.Pow (g.Sub (pred, Y), g.Const (2))), g.Mul (g.Const (2), g.Const (n_samples)));
+
+    // STuck here: TensorFlow bindings need to surface gradient support
+    // waiting on Google for this
+    // https://github.com/migueldeicaza/TensorFlowSharp/issues/25
+}
+```
