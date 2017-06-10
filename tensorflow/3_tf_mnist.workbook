@@ -1,0 +1,109 @@
+---
+uti: com.xamarin.workbook
+platforms:
+- Console
+packages:
+- id: Accord.DataSets
+  version: 3.5.0
+- id: Accord.Neuro
+  version: 3.5.0
+- id: Accord.Audio
+  version: 3.5.0
+- id: Accord.Vision
+  version: 3.5.0
+- id: Accord.Statistics
+  version: 3.5.0
+- id: System.ValueTuple
+  version: 4.3.1
+- id: Accord
+  version: 3.5.0
+- id: Accord.MachineLearning
+  version: 3.5.0
+- id: Accord.IO
+  version: 3.5.0
+- id: Accord.Video
+  version: 3.5.0
+- id: Accord.Imaging
+  version: 3.5.0
+- id: SharpZipLib
+  version: 0.86.0
+- id: Accord.Math
+  version: 3.5.0
+---
+
+*This tutorial is intended for readers who are new to both machine learning and TensorFlow. If you already know what MNIST is, and what softmax (multinomial logistic) regression is, you might prefer this [faster paced tutorial](https://www.tensorflow.org/get_started/mnist/pros). Be sure to[install TensorFlow](https://www.tensorflow.org/install/index) before starting either tutorial.*
+
+When one learns how to program, there's a tradition that the first thing you do is print "Hello World." Just like programming has Hello World, machine learning has MNIST.
+
+MNIST is a simple computer vision dataset. It consists of images of handwritten digits like these:
+
+![](https://www.tensorflow.org/images/MNIST.png)
+
+It also includes labels for each image, telling us which digit it is. For example, the labels for the above images are 5, 0, 4, and 1.
+
+In this tutorial, we're going to train a model to look at images and predict what digits they are. Our goal isn't to train a really elaborate model that achieves state-of-the-art performance -- although we'll give you code to do that later! -- but rather to dip a toe into using TensorFlow. As such, we're going to start with a very simple model, called a Softmax Regression.
+
+The actual code for this tutorial is very short, and all the interesting stuff happens in just three lines. However, it is very important to understand the ideas behind it: both how TensorFlow works and the core machine learning concepts. Because of this, we are going to very carefully work through the code.
+
+```csharp
+#r "TensorFlowSharp"
+#r "System.IO.Compression" 
+#r "System.IO.Compression.FileSystem" 
+#r "System.Numerics"
+#r "Accord"
+#r "Accord.IO"
+#r "Accord.Math"
+#r "Accord.Statistics"
+#r "Accord.MachineLearning"
+#r "Accord.Neuro"
+#r "Accord.Imaging"
+#r "Accord.Vision"
+#r "Accord.Audio"
+#r "Accord.Audition"
+#r "Accord.DataSets"
+```
+
+```csharp
+using System.Net;
+using System.IO; 
+using System.IO.Compression;
+
+using TensorFlow;
+
+var envpaths = new List<string> { @"C:\ProgramData\Anaconda3\envs\py35" }
+    .Union(Environment.GetEnvironmentVariable("PATH").Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries));
+Environment.SetEnvironmentVariable("PATH", string.Join(";", envpaths));
+
+System.Console.WriteLine($"Location: {typeof(TFCore).Assembly.CodeBase}");
+TFCore.Version
+```
+
+The MNIST data is hosted on [Yann LeCun's website](http://yann.lecun.com/exdb/mnist/). If you are copying and pasting in the code from this tutorial, start here with these two lines of code which will download and read in the data automatically:
+
+```csharp
+string dir = @".\tmp";
+
+var mnistdataset = new Accord.DataSets.MNIST(dir);
+Console.WriteLine($"Training Set {mnistdataset.Training.Item1.Count()} vs Testing {mnistdataset.Testing.Item1.Count()}");
+mnistdataset
+```
+
+```csharp
+TFTensor result;
+using (var g = new TFGraph ()) 
+{
+    var s = new TFSession (g);
+
+    var x = g.Placeholder(TFDataType.Float, new TFShape (-1, 784));
+
+    var W = g.Variable(g.Zeros(new TFShape(784, 10)));
+	var b = g.Variable(g.Zeros(new TFShape(10)));
+
+    var y = g.Add(g.Mul(x, W), b);
+
+    var ymax = g.Softmax(y);
+
+    result = s.GetRunner().Run(y);
+}
+result 
+```
