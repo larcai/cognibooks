@@ -9,7 +9,7 @@ packages:
 
 Tensorflow Example
 
-Get the Latest TensorflowSharp from source and compile.  Copy the TensorflowSharp.dll and libtensorflow.dll to this workbook local directory.
+Please see the 1\_tf\_setup.workbook for setup instructions.
 
 ```csharp
 #r "System.ValueTuple" 
@@ -19,16 +19,12 @@ Get the Latest TensorflowSharp from source and compile.  Copy the TensorflowShar
 ```csharp
 using System.IO; 
 using TensorFlow;
-```
 
-Get the latest Ten
+var envpaths = new List<string> { @"C:\ProgramData\Anaconda3\envs\py35" }
+    .Union(Environment.GetEnvironmentVariable("PATH").Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries));
+Environment.SetEnvironmentVariable("PATH", string.Join(";", envpaths));
 
-```csharp
-TFCore.Version
-```
-
-```csharp
-typeof(TFCore).Assembly.CodeBase
+System.Console.WriteLine($"Version: {TFCore.Version} at {typeof(TFCore).Assembly.CodeBase}")
 ```
 
 From https://github.com/aymericdamien/TensorFlow-Examples

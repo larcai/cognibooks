@@ -1,0 +1,85 @@
+---
+uti: com.xamarin.workbook
+platforms:
+- Console
+packages:
+- id: System.ValueTuple
+  version: 4.3.1
+---
+
+Tensorflow Sharp
+
+How to get **TensoflowSharp.dll **and **libtensorflow.dll **with GPU support on windows?
+
+First install Tensorflow on Windows with GPU support
+
+1. Install Anaconda
+
+2. Create python 3.5 environment
+
+3. Install Tensorflow with Anaconda in py35 environment `https://www.tensorflow.org/install/install_windows`
+
+4. Find `_pywrap_tensorflow_internal.pyd` in `C:\ProgramData\Anaconda3\envs\py35\Lib\site-packages\tensorflow\python`
+
+5. Copy `_pywrap_tensorflow_internal.pyd` to this workbook folder
+
+6. Rename `_pywrap_tensorflow_internal.pyd` to `libtensorflow.dll`
+
+Now get the **TensorflowSharp.dll**
+
+1. Get the Latest TensorflowSharp from source and compile.  `https://github.com/migueldeicaza/TensorFlowSharp`
+
+2. Copy the TensorflowSharp.dll to this workbook local directory.
+
+```csharp
+#r "System.ValueTuple" 
+#r "TensorFlowSharp"
+```
+
+```csharp
+using System.IO; 
+using TensorFlow;
+```
+
+Add Anaconda py35 environment to the system path
+
+```csharp
+var envpaths = new List<string> { @"C:\ProgramData\Anaconda3\envs\py35" }
+    .Union(Environment.GetEnvironmentVariable("PATH").Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries));
+Environment.SetEnvironmentVariable("PATH", string.Join(";", envpaths));
+```
+
+Get Tensorflow version…
+
+```csharp
+TFCore.Version
+```
+
+Check the assembly location…
+
+```csharp
+typeof(TFCore).Assembly.CodeBase
+```
+
+Starting the first session…
+
+```csharp
+using (var g = new TFGraph ()) 
+{
+    var s = new TFSession (g);
+
+    TFOutput a = g.Const(2);
+    TFOutput b = g.Const(3);
+    Console.WriteLine("a=2 b=3");
+
+    // Add two constants
+    TFOutput tfadd = g.Add(a, b);
+    TFTensor results = s.GetRunner().Run(tfadd);
+    Console.WriteLine($"a+b={results.GetValue()}");
+
+    // Multiply two constants
+    TFOutput tfmult = g.Mul(a, b);
+    results = s.GetRunner().Run(tfmult);
+    Console.WriteLine($"a*b={results.GetValue()}");
+}
+```

@@ -11,8 +11,6 @@ Tensorflow Example
 
 An example for using the TensorFlow C# API for image recognition using a pre-trained inception model (<http://arxiv.org/abs/1512.00567>).
 
-Sample usage: <program> -dir=/tmp/modeldir imagefile
-
 The pre-trained model takes input in the form of a 4-dimensional tensor with shape \[ BATCH\_SIZE, IMAGE\_HEIGHT, IMAGE\_WIDTH, 3 ],\
 where:\\
 
@@ -61,11 +59,13 @@ using System.IO.Compression;
 using System.Net;
 
 using TensorFlow;
+
+var envpaths = new List<string> { @"C:\ProgramData\Anaconda3\envs\py35" }
+    .Union(Environment.GetEnvironmentVariable("PATH").Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries));
+Environment.SetEnvironmentVariable("PATH", string.Join(";", envpaths));
+
+System.Console.WriteLine($"Version: {TFCore.Version} at {typeof(TFCore).Assembly.CodeBase}")
 ```
-
-Make sure you already have Tensorflow installed on you machine.  I have the GPU version installed on Windows in Anaconda with a Python3.5 environment called py35
-
-Now merge the py35 to your system environment for TensorflowSharop to find it
 
 Downloads the inception graph and labels
 
