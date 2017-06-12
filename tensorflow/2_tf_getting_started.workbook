@@ -1,0 +1,252 @@
+---
+uti: com.xamarin.workbook
+platforms:
+- Console
+packages:
+- id: System.ValueTuple
+  version: 4.3.1
+---
+
+Tensorflow Example
+
+Please see the 1\_tf\_setup.workbook for setup instructions.
+
+```csharp
+#r "System.ValueTuple" 
+#r "TensorFlowSharp"
+```
+
+```csharp
+using System.IO; 
+using TensorFlow;
+
+var envpaths = new List<string> { @"C:\ProgramData\Anaconda3\envs\py35" }
+    .Union(Environment.GetEnvironmentVariable("PATH").Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries));
+Environment.SetEnvironmentVariable("PATH", string.Join(";", envpaths));
+
+System.Console.WriteLine($"Version: {TFCore.Version} at {typeof(TFCore).Assembly.CodeBase}")
+```
+
+Basic tensors
+
+```csharp
+var g = new TFGraph (); 
+var s = new TFSession (g);
+var runner = s.GetRunner();
+
+TFTensor rank0 = 3;//shape[]
+TFTensor rank1 = new double[] { 1.0, 2.0, 3.0 };//shape [3]     
+TFTensor rank2 = new double[,] { { 1, 2, 3 }, { 4, 5, 6 } };//shape[2,3]
+TFTensor rank3 = new double[,,]
+{
+    { { 1, 2, 3 } },
+    { { 4, 5, 6 } }
+};//shape [2, 1, 3]
+```
+
+### The Computational Graph
+
+You might think of TensorFlow Core programs as consisting of two discrete sections:
+
+1. Building the computational graph.
+
+2. Running the computational graph.
+
+A **computational graph** is a series of TensorFlow operations arranged into a graph of nodes. Let's build a simple computational graph. Each node takes zero or more tensors as inputs and produces a tensor as an output. One type of node is a constant. Like all TensorFlow constants, it takes no inputs, and it outputs a value it stores internally. We can create two floating point Tensors `node1` and `node2` as follows:
+
+Notice that printing the nodes does not output the values `3.0` and `4.0` as you might expect. Instead, they are nodes that, when evaluated, would produce 3.0 and 4.0, respectively. To actually evaluate the nodes, we must run the computational graph within a **session**. A session encapsulates the control and state of the TensorFlow runtime.
+
+The following code creates a `Session` object and then invokes its `run` method to run enough of the computational graph to evaluate `node1` and `node2`. By running the computational graph in a session as follows
+
+```csharp
+TFOutput node1 = g.Const(3.0F, TFDataType.Float);
+TFOutput node2 = g.Const(4.0F);
+
+TFTensor[] results = runner.Run(new TFOutput[] { node1, node2 });
+```
+
+We can build more complicated computations by combining `Tensor` nodes with operations (Operations are also nodes.). For example, we can add our two constant nodes and produce a new graph as follows:
+
+```csharp
+TFOutput node3 = g.Add(node1, node2);
+TFTensor result = runner.Run(node3);
+result.GetValue();
+```
+
+TensorFlow provides a utility called TensorBoard that can display a picture of the computational graph. Here is a screenshot showing how TensorBoard visualizes the graph:
+
+![TensorBoard screenshot](https://www.tensorflow.org/images/getting_started_add.png)
+
+As it stands, this graph is not especially interesting because it always produces a constant result. A graph can be parameterized to accept external inputs, known as **placeholders**. A **placeholder** is a promise to provide a value later.
+
+```csharp
+
+TFOutput a = g.Placeholder(TFDataType.Float);
+TFOutput b = g.Placeholder(TFDataType.Float);
+
+TFOutput adder_node = g.Add(a, b);
+
+TFTensor result = runner
+    .AddInput(a, 3.0F)
+    .AddInput(b, 4.5F)
+    .Run(adder_node);
+    
+result.GetValue();
+```
+
+In TensorBoard, the graph looks like this:
+
+![TensorBoard screenshot](https://www.tensorflow.org/images/getting_started_adder.png)
+
+We can make the computational graph more complex by adding another operation. For example,
+
+```csharp
+TFOutput a = g.Placeholder(TFDataType.Float);
+TFOutput b = g.Placeholder(TFDataType.Float);
+
+TFOutput adder_node = g.Add(a, b);
+TFOutput add_and_triple = g.Mul(g.Const(3.0F, TFDataType.Float), adder_node);
+
+TFTensor result = s.GetRunner()
+    .AddInput(a, 3.0F)
+    .AddInput(b, 4.5F)
+    .Run(add_and_triple);
+    
+result.GetValue();
+```
+
+The preceding computational graph would look as follows in TensorBoard:
+
+![TensorBoard screenshot](https://www.tensorflow.org/images/getting_started_triple.png)
+
+In machine learning we will typically want a model that can take arbitrary inputs, such as the one above.  To make the model trainable, we need to be able to modify the graph to get new outputs with the same input.  **Variables** allow us to add trainable parameters to a graph.  They are constructed with a type and initial value:
+
+Constants are initialized when you call `tf.constant`, and their value can never change. By contrast, variables are not initialized when you call `tf.Variable`. To initialize all the variables in a TensorFlow program, you must explicitly call a special operation as follows:
+
+```csharp
+TFTensor[] results;
+{
+    TFStatus status = new TFStatus();
+    var runner = s.GetRunner();
+
+    TFOutput vW, vb, vlinearmodel;
+    var x = g.Placeholder(TFDataType.Float);
+    var hW = g.Variable(g.Const(0.3F, TFDataType.Float), out vW);
+    var hb = g.Variable(g.Const(-0.3F, TFDataType.Float), out vb);
+    var hlinearmodel = g.Variable(g.Const(0.0F, TFDataType.Float), out vlinearmodel);
+
+    var linearmodel = g.Add(g.Mul(vW, x), vb);
+
+    var hoplm = g.AssignVariableOp(hlinearmodel, linearmodel);
+
+    //init all variable
+    runner
+        .AddTarget(g.GetGlobalVariablesInitializer())
+        .AddTarget(hoplm)
+        .AddInput(x, new float[] { 1F, 2F, 3F, 4F })
+        .Run(status);
+
+    //now get actual value
+    results = s.GetRunner()
+        .Fetch(vlinearmodel)
+        .Run();        
+}
+
+results[0].GetValue();
+```
+
+We've created a model, but we don't know how good it is yet. To evaluate the model on training data, we need a `y` placeholder to provide the desired values, and we need to write a loss function.
+
+A loss function measures how far apart the current model is from the provided data. We'll use a standard loss model for linear regression, which sums the squares of the deltas between the current model and the provided data. `linear_model - y` creates a vector where each element is the corresponding example's error delta. We call `tf.square` to square that error. Then, we sum all the squared errors to create a single scalar that abstracts the error of all examples using `tf.reduce_sum`:
+
+```csharp
+{
+    TFStatus status = new TFStatus();
+
+    var runner = s.GetRunner();
+
+    TFOutput vW, vb, vloss;
+    var x = g.Placeholder(TFDataType.Float);
+    var y = g.Placeholder(TFDataType.Float);
+    var hW = g.Variable(g.Const(0.3F, TFDataType.Float), out vW);
+    var hb = g.Variable(g.Const(-0.3F, TFDataType.Float), out vb);
+    var hloss = g.Variable(g.Const(0.0F, TFDataType.Float), out vloss);
+
+    var linearmodel = g.Add(g.Mul(vW, x), vb);
+    var squared_deltas = g.Square(g.Add(linearmodel, g.Neg(y)));
+    var loss = g.ReduceSum(squared_deltas, axis: g.Const(0));
+
+    var hoploss = g.AssignVariableOp(hloss, loss);
+
+    runner
+        .AddTarget(g.GetGlobalVariablesInitializer())
+        .AddTarget(hoploss)
+        .AddInput(x, new float[] { 1F, 2F, 3F, 4F })
+        .AddInput(y, new float[] { 0F, -1F, -2F, -3F })
+        .Run(status);
+
+    results = s.GetRunner()
+        .Fetch(vloss)
+        .Run();
+}
+results[0].GetValue()
+```
+
+We could improve this manually by reassigning the values of `W` and `b` to the perfect values of -1 and 1. A variable is initialized to the value provided to `tf.Variable` but can be changed using operations like `tf.assign`. For example, `W=-1` and `b=1` are the optimal parameters for our model. We can change `W` and `b` accordingly:
+
+```csharp
+{
+    TFStatus status = new TFStatus();
+
+    var runner = s.GetRunner();
+
+    TFOutput vW, vb, vloss;
+    var x = g.Placeholder(TFDataType.Float);
+    var y = g.Placeholder(TFDataType.Float);
+    var hW = g.Variable(g.Const(0.3F, TFDataType.Float), out vW);
+    var hb = g.Variable(g.Const(-0.3F, TFDataType.Float), out vb);
+    var hloss = g.Variable(g.Const(0.0F, TFDataType.Float), out vloss);
+
+    var linearmodel = g.Add(g.Mul(vW, x), vb);
+    var squared_deltas = g.Square(g.Add(linearmodel, g.Neg(y)));
+    var loss = g.ReduceSum(squared_deltas, axis: g.Const(0));
+
+    var hoploss = g.AssignVariableOp(hloss, loss);
+    
+    Console.WriteLine("Lets go!!!");
+
+    runner
+        .AddTarget(g.GetGlobalVariablesInitializer())
+        .AddTarget(hoploss)
+        .AddInput(x, new float[] { 1F, 2F, 3F, 4F })
+        .AddInput(y, new float[] { 0F, -1F, -2F, -3F })
+        .Run(status);
+
+    Console.WriteLine(status);
+    
+    results = s.GetRunner()
+        .Fetch(vloss)
+        .Run();
+
+    Console.WriteLine($"Result: {results[0]}");
+
+    var fixWop = g.AssignVariableOp(hW, g.Const(-1));
+    var fixbop = g.AssignVariableOp(hb, g.Const(1));
+
+    s.GetRunner()
+        .AddTarget(g.GetGlobalVariablesInitializer())
+        .AddTarget(fixWop)
+        .AddTarget(fixbop)
+        .Run(status);
+        
+    Console.WriteLine(status);
+    
+    results = s.GetRunner()
+        .Fetch(vloss)
+        .Run();
+
+    Console.WriteLine($"Result: {results[0]}");
+
+}
+results[0].GetValue()
+```
