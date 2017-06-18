@@ -1,0 +1,143 @@
+---
+uti: com.xamarin.workbook
+platforms:
+- Console
+packages:
+- id: Accord.DataSets
+  version: 3.5.0
+- id: XPlot.Plotly
+  version: 1.4.2
+- id: Newtonsoft.Json
+  version: 9.0.1
+- id: Accord.Neuro
+  version: 3.5.0
+- id: Accord.Audio
+  version: 3.5.0
+- id: Accord.Vision
+  version: 3.5.0
+- id: Accord.Statistics
+  version: 3.5.0
+- id: System.ValueTuple
+  version: 4.3.1
+- id: Accord
+  version: 3.5.0
+- id: Accord.MachineLearning
+  version: 3.5.0
+- id: FSharp.Core
+  version: 4.2.1
+- id: Accord.IO
+  version: 3.5.0
+- id: Accord.Video
+  version: 3.5.0
+- id: Accord.Imaging
+  version: 3.5.0
+- id: SharpZipLib
+  version: 0.86.0
+- id: Accord.Math
+  version: 3.5.0
+---
+
+When one learns how to program, there's a tradition that the first thing you do is print "Hello World." Just like programming has Hello World, machine learning has MNIST.
+
+MNIST is a simple computer vision dataset. It consists of images of handwritten digits like these:
+
+![](https://www.tensorflow.org/images/MNIST.png)
+
+It also includes labels for each image, telling us which digit it is. For example, the labels for the above images are 5, 0, 4, and 1.
+
+In this tutorial, we're going to train a model to look at images and predict what digits they are. Our goal isn't to train a really elaborate model that achieves state-of-the-art performance -- although we'll give you code to do that later! -- but rather to dip a toe into using TensorFlow. As such, we're going to start with a very simple model, called a Softmax Regression.
+
+The actual code for this tutorial is very short, and all the interesting stuff happens in just three lines. However, it is very important to understand the ideas behind it: both how TensorFlow works and the core machine learning concepts. Because of this, we are going to very carefully work through the code.
+
+```csharp
+#r "FSharp.Core"
+#r "XPlot.Plotly"
+
+#r "System.Numerics"
+
+#r "Accord"
+#r "Accord.IO"
+#r "Accord.Math"
+#r "Accord.Statistics"
+#r "Accord.MachineLearning"
+#r "Accord.Neuro"
+#r "Accord.DataSets"
+```
+
+The MNIST data is hosted on [Yann LeCun's website](http://yann.lecun.com/exdb/mnist/). If you are copying and pasting in the code from this tutorial, start here with these two lines of code which will download and read in the data automatically:
+
+```csharp
+using XPlot.Plotly;
+using System.Linq;
+using Accord.Math;
+
+string dir = @".\tmp";
+
+var mnistdataset = new Accord.DataSets.MNIST(dir);
+Console.WriteLine($"Training Set Count {mnistdataset.Training.Item1.Count()}");
+mnistdataset
+```
+
+```csharp
+//create 3D result
+string tsneresulrfile = $"{dir}\\mnist_tsne_result.bin";
+
+double[][] result = null;
+if (System.IO.File.Exists(tsneresulrfile))
+{
+    Console.WriteLine($"Loading cached t-SNE result");
+    result = Accord.IO.Serializer.Load<double[][]>(tsneresulrfile);
+}
+else 
+{
+    result = new double[mnistdataset.Training.Item1.Count()][];
+    for (int i = 0; i < result.Length; i ++) result[i] = new double[3];
+
+    double[][] mnistinput = mnistdataset.Training.Item1.ToList().ConvertAll(r => r.ToDense(28*28)).ToArray();
+    Console.WriteLine($"MNIST Input Count {mnistinput.Length} ");
+    
+    Console.WriteLine($"Please be patient while t-SNE is running");
+    Accord.MachineLearning.Clustering.TSNE tsne = new Accord.MachineLearning.Clustering.TSNE();
+    tsne.Transform(mnistinput, result);
+
+    Console.WriteLine($"Lets cache t-SNE results");
+    Accord.IO.Serializer.Save(result, tsneresulrfile);
+}
+List<Graph.Scatter3d> traces = new List<Graph.Scatter3d>();
+
+Random rnd = new Random();
+for (int digit = 0; digit <= 9; digit ++)
+{
+    List<double> x = new List<double>();
+    List<double> y = new List<double>();
+    List<double> z = new List<double>();
+
+     for (int j = 0; j < mnistdataset.Training.Item2.Count(); j ++)
+     {
+         if (mnistdataset.Training.Item2[j] == digit)
+         {
+            x.Add(result[j][0]);
+            y.Add(result[j][1]);
+            z.Add(result[j][2]);
+         }
+     }
+     string randomcolor = $"rgb({rnd.Next(50, 200)},{rnd.Next(50, 200)},{rnd.Next(50, 200)})";
+     var trace = new Graph.Scatter3d() { x = x, y = y, z = z,
+        name = $"Digit {digit}",
+        text = $"Digit {digit}",
+        mode = "markers", 
+        marker = new Graph.Marker() { color = randomcolor, size = 2.0, symbol = "circle", 
+            line = new Graph.Line() { color = "rgb(0,0,0)", width = 0.0 }
+        },
+        line = new Graph.Line() { color = "#1f77b4", width = 1.0}
+    };
+    traces.Add(trace);
+}
+
+var layout = new Layout.Layout() { title = "tSNE on MNIST", autosize = false, margin = new Graph.Margin() { l = 0, r = 0, b = 0, t = 65 }}; 
+
+var scatterplot = Chart.Plot(traces.ToArray(), layout);  
+scatterplot.WithWidth(800); 
+scatterplot.WithHeight(500);
+scatterplot.GetHtml().AsHtml();
+```
