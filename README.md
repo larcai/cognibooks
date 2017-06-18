@@ -19,6 +19,20 @@ This workbook show of the Xplot
 
 ![Screenshot.Tfsharp](screenshot.tfsharp.png)
 
+![Screenshot.Tf.Gs.A](./tensorflow/screenshot.tf.gs.a.png)
+
+![Screenshot.Tf.Gs.B](./tensorflow/screenshot.tf.gs.b.png)
+
+
 ### CNTK
 
 Unfortunately CNTK does not have proper C# bindings yet
+
+### Accord Framework
+
+Example showing the GMM clustering
+![Af Gmm](./accordframework/af_gmm.png)
+
+Example showing t-SNE on MNIST dataset
+![Af Tsne Mnist](./accordframework/af_tsne_mnist.png)
+
