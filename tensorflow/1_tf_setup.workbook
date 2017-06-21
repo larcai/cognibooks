@@ -9,7 +9,7 @@ packages:
 
 Tensorflow Sharp
 
-How to get **TensoflowSharp.dll **and **libtensorflow.dll **with GPU support on windows?
+How to get **TensoflowSharp.dll** and **libtensorflow.dll** with GPU support on windows?
 
 First install Tensorflow on Windows with GPU support
 
