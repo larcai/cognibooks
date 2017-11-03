@@ -1,0 +1,33 @@
+---
+uti: com.xamarin.workbook
+id: b45738b5-f298-4a26-b2e2-5c48b0f30aa1
+title: GettingStarted
+platforms:
+- WPF
+---
+
+Make sure CNTK is in your path
+
+```csharp
+#r "J:\AI\cntk\cntk\Cntk.Core.Managed-2.2.dll"
+```
+
+Check if managed assembly loaded correctly
+
+```csharp
+using CNTK;
+typeof(CNTKLib).Assembly
+```
+
+```csharp
+var devices = CNTK.DeviceDescriptor.AllDevices();
+```
+
+Ok, CNTK found int CPU and one GPU, lets check out the GPU
+
+```csharp
+var gpu = CNTK.DeviceDescriptor.GPUDevice(0); 
+gpu.AsString();
+```
+
+Nice, I have an Nvidia GEForce GTX 1060…  pitty it isnt a 1080…

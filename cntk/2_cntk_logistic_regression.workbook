@@ -1,0 +1,242 @@
+---
+packages:
+- id: FSharp.Core
+  version: 4.2.3
+- id: XPlot.Plotly
+  version: 1.4.2
+uti: com.xamarin.workbook
+id: b45738b5-f298-4a26-b2e2-5c48b0f30aa1
+title: GettingStarted
+platforms:
+- WPF
+---
+
+Make sure CNTK is in your path
+
+```csharp
+#r "FSharp.Core"
+#r "XPlot.Plotly"
+#r "J:\AI\cntk\cntk\Cntk.Core.Managed-2.2.dll"
+```
+
+Check if managed assembly loaded correctly
+
+```csharp
+using System.Linq;
+using CNTK;
+using XPlot.Plotly;
+
+var device = CNTK.DeviceDescriptor.GPUDevice(0); 
+device.AsString();
+```
+
+```csharp
+static int inputDim = 3;
+static int numOutputClasses = 2;  
+
+Variable featureVariable = Variable.InputVariable(new int[] { inputDim }, DataType.Float);
+Variable labelVariable = Variable.InputVariable(new int[] { numOutputClasses }, DataType.Float); 
+
+var weightParam = new Parameter(new int[] { numOutputClasses, inputDim }, DataType.Float, 1, device, "w");
+var biasParam = new Parameter(new int[] { numOutputClasses }, DataType.Float, 0, device, "b");
+
+var classifierOutput = CNTKLib.Times(weightParam, featureVariable) + biasParam;
+var loss = CNTKLib.CrossEntropyWithSoftmax(classifierOutput, labelVariable);
+var evalError = CNTKLib.ClassificationError(classifierOutput, labelVariable); 
+
+CNTK.TrainingParameterScheduleDouble learningRatePerSample = new CNTK.TrainingParameterScheduleDouble(0.02, 1);
+IList<Learner> parameterLearners = new List<Learner>() { Learner.SGDLearner(classifierOutput.Parameters(), learningRatePerSample) };
+
+var trainer = Trainer.CreateTrainer(classifierOutput, loss, evalError, parameterLearners);
+```
+
+```csharp
+private static void GenerateValueData(int sampleSize, int inputDim, int numOutputClasses,
+    out Value featureValue, out Value labelValue, DeviceDescriptor device)
+{
+    float[] features;
+    float[] oneHotLabels;
+    GenerateRawDataSamples(sampleSize, inputDim, numOutputClasses, out features, out oneHotLabels);
+
+    featureValue = Value.CreateBatch<float>(new int[] { inputDim }, features, device);
+    labelValue = Value.CreateBatch<float>(new int[] { numOutputClasses }, oneHotLabels, device);
+}
+
+private static void GenerateRawDataSamples(int sampleSize, int inputDim, int numOutputClasses,
+    out float[] features, out float[] oneHotLabels)
+{
+    Random random = new Random(0);
+
+    features = new float[sampleSize * inputDim];
+    oneHotLabels = new float[sampleSize * numOutputClasses];
+
+    for (int sample = 0; sample < sampleSize; sample++)
+    {
+        int label = random.Next(numOutputClasses);
+        for (int i = 0; i < numOutputClasses; i++)
+        {
+            oneHotLabels[sample * numOutputClasses + i] = label == i ? 1 : 0;
+        }
+
+        for (int i = 0; i < inputDim; i++)
+        {
+            features[sample * inputDim + i] = (float)GenerateGaussianNoise(3, 1, random) * (label + 1);
+        }
+    }
+}
+
+/// <summary>
+/// https://en.wikipedia.org/wiki/Box%E2%80%93Muller_transform
+/// https://stackoverflow.com/questions/218060/random-gaussian-variables
+/// </summary>
+/// <returns></returns>
+static double GenerateGaussianNoise(double mean, double stdDev, Random random)
+{
+    double u1 = 1.0 - random.NextDouble();
+    double u2 = 1.0 - random.NextDouble();
+    double stdNormalRandomValue = Math.Sqrt(-2.0 * Math.Log(u1)) * Math.Sin(2.0 * Math.PI * u2);
+    return mean + stdDev * stdNormalRandomValue;
+}
+```
+
+Now we train the model
+
+```csharp
+int minibatchSize = 64;
+int numMinibatchesToTrain = 1000;
+int updatePerMinibatches = 50;
+
+// train the model
+for (int minibatchCount = 0; minibatchCount < numMinibatchesToTrain; minibatchCount++)
+{
+    Value features, labels;
+    GenerateValueData(minibatchSize, inputDim, numOutputClasses, out features, out labels, device);
+    //TODO: sweepEnd should be set properly instead of false.
+#pragma warning disable 618
+    trainer.TrainMinibatch(new Dictionary<Variable, Value>() { { featureVariable, features }, { labelVariable, labels } }, device);
+#pragma warning restore 618
+    
+} 
+Console.WriteLine($"Features: {featureVariable.AsString()}");
+Console.WriteLine($"Labels: {labelVariable.AsString()}"); 
+
+int testSize = 100;
+Value testFeatureValue, expectedLabelValue;
+GenerateValueData(testSize, inputDim, numOutputClasses, out testFeatureValue, out expectedLabelValue, device); 
+
+Console.WriteLine($"Test Feature Value: {testFeatureValue.AsString()}");
+Console.WriteLine($"Test Label Value: {expectedLabelValue.AsString()}"); 
+
+// GetDenseData just needs the variable's shape
+IList<IList<float>> expectedOneHot = expectedLabelValue.GetDenseData<float>(labelVariable);
+List<int> expectedLabels = expectedOneHot.Select(l => l.IndexOf(1.0F)).ToList();
+
+Console.WriteLine($"Expected: {string.Join(", ", expectedLabels)}");
+
+List<IList<float>> features = testFeatureValue.GetDenseData<float>(featureVariable).ToList();
+
+List<string> colors = new List<string>() { "rgb(200,0,0)", "rgb(0,0,200)", "rgb(0,200,0)" };
+Random rnd = new Random();
+List<Graph.Scatter3d> traces = new List<Graph.Scatter3d>();
+foreach (int series in expectedLabels.Distinct())
+{
+
+    traces.Add(new Graph.Scatter3d()
+        { 
+            name = $"Class {series}",
+            text = $"Class {series}",  
+            x = features.Where(f => series == expectedLabels[features.IndexOf(f)]).Select(f => f[0]).ToList(),
+            y = features.Where(f => series == expectedLabels[features.IndexOf(f)]).Select(f => f[1]).ToList(),
+            z = features.Where(f => series == expectedLabels[features.IndexOf(f)]).Select(f => f[2]).ToList(),
+            mode = "markers", 
+            marker = new Graph.Marker() { 
+                color = series < colors.Count ? colors[series] : $"rgb({rnd.Next(50, 200)},{rnd.Next(50, 200)},{rnd.Next(50, 200)})", 
+                size = 5.0, 
+                symbol = "circle", 
+                line = new Graph.Line() { color = "rgb(0,0,0)", width = 0.0 }
+            },
+            line = new Graph.Line() { color = "#1f77b4", width = 1.0}
+        });
+}
+
+//traces.ToArray();
+
+var layout = new Layout.Layout() { title = "Data", width = 800, height = 800, margin = new Graph.Margin() { l = 0, r = 0, b = 0, t = 65 }}; 
+var scatterplot = Chart.Plot(traces.ToArray(), layout);  
+
+scatterplot.WithWidth(800); 
+scatterplot.WithHeight(800);
+scatterplot.GetHtml().AsHtml();
+```
+
+Now we test the model
+
+```csharp
+
+
+
+var inputDataMap = new Dictionary<Variable, Value>() { { featureVariable, testFeatureValue } };
+var outputDataMap = new Dictionary<Variable, Value>() { { classifierOutput.Output, null } };
+classifierOutput.Evaluate(inputDataMap, outputDataMap, device);
+var outputValue = outputDataMap[classifierOutput.Output];
+List<IList<float>> actualLabelSoftMax = outputValue.GetDenseData<float>(classifierOutput.Output).ToList();
+var actualLabels = actualLabelSoftMax.Select((IList<float> l) => l.IndexOf(l.Max())).ToList();
+int misMatches = actualLabels.Zip(expectedLabels, (a, b) => a.Equals(b) ? 0 : 1).Sum();
+
+Console.WriteLine($"Validating Model: Total Samples = {testSize}, Misclassify Count = {misMatches}"); 
+
+
+List<string> colors = new List<string>() { "red", "blue" };
+Random rnd = new Random();
+List<Graph.Scatter3d> traces = new List<Graph.Scatter3d>();
+foreach (int series in actualLabels.Distinct())
+{    
+    traces.Add(new Graph.Scatter3d()
+        { 
+            name = $"Class {series}",
+            text = $"Class {series}",
+            x = features.Where(f => series == actualLabels[features.IndexOf(f)]).Select(f => f[0]).ToList(),
+            y = features.Where(f => series == actualLabels[features.IndexOf(f)]).Select(f => f[1]).ToList(),
+            z = features.Where(f => series == actualLabels[features.IndexOf(f)]).Select(f => f[2]).ToList(),
+            mode = "markers", 
+            marker = new Graph.Marker() { 
+                color = series < colors.Count ? colors[series] : $"rgb({rnd.Next(50, 200)},{rnd.Next(50, 200)},{rnd.Next(50, 200)})", 
+                size = 5.0, 
+                symbol = "circle", 
+                line = new Graph.Line() { color = "rgb(0,0,0)", width = 0.0 }
+            },
+            line = new Graph.Line() { color = "#1f77b4", width = 1.0}
+        });
+}
+
+colors = new List<string>() { "rgb(0, 100, 0)", "rgb(0, 200, 0)" };
+foreach (int series in actualLabels.Distinct())
+{    
+    traces.Add(new Graph.Scatter3d()
+        { 
+            name = $"Mismatch {series}",
+            text = $"Mismatch {series}",
+            x = features.Where(f => series == actualLabels[features.IndexOf(f)] && actualLabels[features.IndexOf(f)] != expectedLabels[features.IndexOf(f)]).Select(f => f[0]).ToList(),
+            y = features.Where(f => series == actualLabels[features.IndexOf(f)] && actualLabels[features.IndexOf(f)] != expectedLabels[features.IndexOf(f)]).Select(f => f[1]).ToList(),
+            z = features.Where(f => series == actualLabels[features.IndexOf(f)] && actualLabels[features.IndexOf(f)] != expectedLabels[features.IndexOf(f)]).Select(f => f[2]).ToList(),
+            mode = "markers", 
+            marker = new Graph.Marker() { 
+                color = series < colors.Count ? colors[series] : $"rgb({rnd.Next(50, 200)},{rnd.Next(50, 200)},{rnd.Next(50, 200)})",
+                size = 10.0, 
+                symbol = "circle", 
+                line = new Graph.Line() { color = "rgb(0,0,0)", width = 0.0 }
+            },
+            line = new Graph.Line() { color = "#1f77b4", width = 1.0}
+        });
+}
+
+
+//traces.ToArray();
+
+var layout = new Layout.Layout() { title = "Data", width = 800, height = 800, margin = new Graph.Margin() { l = 0, r = 0, b = 0, t = 65 }}; 
+var scatterplot = Chart.Plot(traces.ToArray(), layout);  
+
+scatterplot.WithWidth(800); 
+scatterplot.WithHeight(800);
+scatterplot.GetHtml().AsHtml();
+```
