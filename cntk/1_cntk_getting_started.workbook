@@ -1,4 +1,9 @@
 ---
+packages:
+- id: FSharp.Core
+  version: 4.2.3
+- id: XPlot.Plotly
+  version: 1.4.2
 uti: com.xamarin.workbook
 id: b45738b5-f298-4a26-b2e2-5c48b0f30aa1
 title: GettingStarted
@@ -9,13 +14,21 @@ platforms:
 Make sure CNTK is in your path
 
 ```csharp
+#r "FSharp.Core"
+#r "XPlot.Plotly"
 #r "J:\AI\cntk\cntk\Cntk.Core.Managed-2.2.dll"
 ```
 
 Check if managed assembly loaded correctly
 
 ```csharp
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+using XPlot.Plotly;
 using CNTK;
+
 typeof(CNTKLib).Assembly
 ```
 
@@ -26,8 +39,121 @@ var devices = CNTK.DeviceDescriptor.AllDevices();
 Ok, CNTK found int CPU and one GPU, lets check out the GPU
 
 ```csharp
-var gpu = CNTK.DeviceDescriptor.GPUDevice(0); 
-gpu.AsString();
+var device = CNTK.DeviceDescriptor.GPUDevice(0); 
+device.AsString();
 ```
 
-Nice, I have an Nvidia GEForce GTX 1060…  pitty it isnt a 1080…
+Lets create a Variable with 3 dimensions and init the record with Posative random values
+
+After that we build a Simple CNTK model to Negate the values
+
+```csharp
+//Variable values = Variable.InputVariable(new int[] { 3 }, DataType.Float);
+int Count = 100;
+int Dim = 3;
+var data = new float[Count * Dim];
+var dataO = new float[Count * Dim];
+
+//we generate random points on a 3d posative quadrant
+Random random = new Random();
+for (int i = 0; i < Count; i++)
+{
+    for (int d = 0; d < Dim; d++)
+    {            
+        data[i * Dim + d] = (float)random.Next(0, 100);
+    }
+}
+
+Value value = Value.CreateBatch<float>(new int[] { Dim }, data, device);
+Variable valueVar = Variable.InputVariable(new int[] { Dim }, DataType.Float);
+List<IList<float>> densedataIn = value.GetDenseData<float>(valueVar).ToList();
+
+Dictionary<Variable, Value> inputMap = new Dictionary<Variable, Value>() { {valueVar, value} };
+```
+
+Now we draw a 3d graph to show the posative and negative values
+
+```csharp
+var fnneg = CNTKLib.Negate(valueVar); 
+Dictionary<Variable, Value> outputMap = new Dictionary<Variable, Value>() { {fnneg.Output, null} };
+fnneg.Evaluate(inputMap, outputMap, device);
+
+var outputValue = outputMap[fnneg.Output];
+List<IList<float>> densedataOut = outputValue.GetDenseData<float>(fnneg.Output).ToList();
+
+var scatter3din = new Graph.Scatter3d()
+{ 
+    name = $"Random Data",
+    text = $"Random Data",
+    x = densedataIn.Select(f => f[0]).ToList(),
+    y = densedataIn.Select(f => f[1]).ToList(),
+    z = densedataIn.Select(f => f[2]).ToList(),
+    mode = "markers", 
+    marker = new Graph.Marker() { 
+        color = "red", 
+        size = 5.0, 
+        symbol = "circle", 
+        line = new Graph.Line() { color = "rgb(0,0,0)", width = 0.0 }
+    },
+    line = new Graph.Line() { color = "#1f77b4", width = 1.0}
+};
+
+var scatter3dout = new Graph.Scatter3d()
+{ 
+    name = $"Negative Random Data",
+    text = $"Negative Random Data",
+    x = densedataOut.Select(f => f[0]).ToList(),
+    y = densedataOut.Select(f => f[1]).ToList(),
+    z = densedataOut.Select(f => f[2]).ToList(),
+    mode = "markers", 
+    marker = new Graph.Marker() { 
+        color = "blue", 
+        size = 5.0, 
+        symbol = "circle", 
+        line = new Graph.Line() { color = "rgb(0,0,0)", width = 0.0 }
+    },
+    line = new Graph.Line() { color = "#1f77b4", width = 1.0}
+};
+
+var layout = new Layout.Layout() { title = "Data", width = 600, height = 600, margin = new Graph.Margin() { l = 0, r = 0, b = 0, t = 65 }}; 
+var scatterplot = Chart.Plot(new Graph.Scatter3d[] {scatter3din, scatter3dout}, layout);  
+
+scatterplot.WithWidth(600); 
+scatterplot.WithHeight(600);
+scatterplot.GetHtml().AsHtml();
+
+```
+
+```csharp
+var fn = CNTKLib.ElementTimes(fnneg, Constant.Scalar(3.0F, device)); 
+
+outputMap = new Dictionary<Variable, Value>() { {fn.Output, null} };
+fn.Evaluate(inputMap, outputMap, device);
+
+var outputValue = outputMap[fn.Output];
+List<IList<float>> densedataOut = outputValue.GetDenseData<float>(fn.Output).ToList();
+
+var scatter3dout2 = new Graph.Scatter3d()
+{ 
+    name = $"Negative Random Data Scaled",
+    text = $"Negative Random Data Scaled",
+    x = densedataOut.Select(f => f[0]).ToList(),
+    y = densedataOut.Select(f => f[1]).ToList(),
+    z = densedataOut.Select(f => f[2]).ToList(),
+    mode = "markers", 
+    marker = new Graph.Marker() { 
+        color = "green", 
+        size = 5.0, 
+        symbol = "circle", 
+        line = new Graph.Line() { color = "rgb(0,0,0)", width = 0.0 }
+    },
+    line = new Graph.Line() { color = "#1f77b4", width = 1.0}
+};
+
+var layout = new Layout.Layout() { title = "Data", width = 600, height = 600, margin = new Graph.Margin() { l = 0, r = 0, b = 0, t = 65 }}; 
+var scatterplot = Chart.Plot(new Graph.Scatter3d[] {scatter3din, scatter3dout, scatter3dout2}, layout);  
+
+scatterplot.WithWidth(600); 
+scatterplot.WithHeight(600);
+scatterplot.GetHtml().AsHtml();
+```

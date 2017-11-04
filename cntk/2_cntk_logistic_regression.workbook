@@ -6,7 +6,7 @@ packages:
   version: 1.4.2
 uti: com.xamarin.workbook
 id: b45738b5-f298-4a26-b2e2-5c48b0f30aa1
-title: GettingStarted
+title: Logistic Regression
 platforms:
 - WPF
 ---
@@ -135,37 +135,28 @@ Console.WriteLine($"Expected: {string.Join(", ", expectedLabels)}");
 
 List<IList<float>> features = testFeatureValue.GetDenseData<float>(featureVariable).ToList();
 
-List<string> colors = new List<string>() { "rgb(200,0,0)", "rgb(0,0,200)", "rgb(0,200,0)" };
-Random rnd = new Random();
-List<Graph.Scatter3d> traces = new List<Graph.Scatter3d>();
-foreach (int series in expectedLabels.Distinct())
-{
-
-    traces.Add(new Graph.Scatter3d()
+var scatter3d = new Graph.Scatter3d()
         { 
-            name = $"Class {series}",
-            text = $"Class {series}",  
-            x = features.Where(f => series == expectedLabels[features.IndexOf(f)]).Select(f => f[0]).ToList(),
-            y = features.Where(f => series == expectedLabels[features.IndexOf(f)]).Select(f => f[1]).ToList(),
-            z = features.Where(f => series == expectedLabels[features.IndexOf(f)]).Select(f => f[2]).ToList(),
+            name = $"Data",
+            text = $"Data",  
+            x = features.Select(f => f[0]).ToList(),
+            y = features.Select(f => f[1]).ToList(),
+            z = features.Select(f => f[2]).ToList(),
             mode = "markers", 
             marker = new Graph.Marker() { 
-                color = series < colors.Count ? colors[series] : $"rgb({rnd.Next(50, 200)},{rnd.Next(50, 200)},{rnd.Next(50, 200)})", 
+                color = "black", 
                 size = 5.0, 
                 symbol = "circle", 
                 line = new Graph.Line() { color = "rgb(0,0,0)", width = 0.0 }
             },
             line = new Graph.Line() { color = "#1f77b4", width = 1.0}
-        });
-}
+        };
 
-//traces.ToArray();
+var layout = new Layout.Layout() { title = "Data", width = 600, height = 600, margin = new Graph.Margin() { l = 0, r = 0, b = 0, t = 65 }}; 
+var scatterplot = Chart.Plot(scatter3d, layout);  
 
-var layout = new Layout.Layout() { title = "Data", width = 800, height = 800, margin = new Graph.Margin() { l = 0, r = 0, b = 0, t = 65 }}; 
-var scatterplot = Chart.Plot(traces.ToArray(), layout);  
-
-scatterplot.WithWidth(800); 
-scatterplot.WithHeight(800);
+scatterplot.WithWidth(600); 
+scatterplot.WithHeight(600);
 scatterplot.GetHtml().AsHtml();
 ```
 
