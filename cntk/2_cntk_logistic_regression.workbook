@@ -224,10 +224,10 @@ foreach (int series in actualLabels.Distinct())
 
 //traces.ToArray();
 
-var layout = new Layout.Layout() { title = "Data", width = 800, height = 800, margin = new Graph.Margin() { l = 0, r = 0, b = 0, t = 65 }}; 
+var layout = new Layout.Layout() { title = "Data", width = 600, height = 600, margin = new Graph.Margin() { l = 0, r = 0, b = 0, t = 65 }}; 
 var scatterplot = Chart.Plot(traces.ToArray(), layout);  
 
-scatterplot.WithWidth(800); 
-scatterplot.WithHeight(800);
+scatterplot.WithWidth(600); 
+scatterplot.WithHeight(600);
 scatterplot.GetHtml().AsHtml();
 ```
